@@ -1,0 +1,10 @@
+.DS_Store
+*.local
+
+logs
+*.log
+pnpm-debug.log*
+
+node_modules
+
+public/models/*
