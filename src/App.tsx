@@ -4,6 +4,7 @@ import ChatWindow from './components/ChatWindow'
 import MessageInput from './components/MessageInput'
 import FileUploader from './components/FileUploader'
 import { LoaderCircle, AlertTriangle } from 'lucide-react'
+import { retrieveWebContext } from './hooks/useWebRag'
 
 export interface Message {
   id: number
@@ -39,8 +40,25 @@ function App() {
     setMessages((prev) => [...prev, botMessage])
 
     try {
-      const prompt = contextFile
-        ? `Contexto (arquivo ${contextFile.name}): ${contextFile.content} \n\nPergunta: ${text} \n\nResposta:`
+      const { context: webContext, sources } = await retrieveWebContext(text)
+
+      const fileContext = contextFile
+        ? `Contexto do arquivo (${contextFile.name}):\n${contextFile.content}`
+        : ''
+
+      const composedContext = [
+        webContext && `Contexto da Web:\n${webContext}`,
+        fileContext,
+      ]
+        .filter(Boolean)
+        .join('\n\n')
+
+      const prompt = composedContext
+        ? `${composedContext}
+
+Pergunta: ${text}
+
+Responda com base no contexto quando pertinente. Em caso de falta de evidências no contexto, seja claro sobre limitações. Responda em português e mantenha a resposta concisa.`
         : text
 
       const stream = await llm.generateResponse(prompt)
@@ -50,6 +68,19 @@ function App() {
           prev.map((msg) =>
             msg.id === botMessage.id
               ? { ...msg, text: msg.text + partialResponse }
+              : msg
+          )
+        )
+      }
+
+      if (sources.length > 0) {
+        const sourcesText =
+          '\n\nFontes:\n' +
+          sources.map((s, i) => `- [${i + 1}] ${s.title} — ${s.url}`).join('\n')
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.id === botMessage.id
+              ? { ...msg, text: msg.text + sourcesText }
               : msg
           )
         )
